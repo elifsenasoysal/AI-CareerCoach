@@ -5,13 +5,13 @@ from fastapi import HTTPException
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     """
-    Extracts text content from PDF binary data using pypdf.
+    PDF ikili verisinden pypdf kullanarak metin içeriğini çıkarır.
     """
     try:
-        # Wrap bytes in a file-like stream
+        # Baytları dosya benzeri bir akışa sar
         pdf_stream = io.BytesIO(pdf_bytes)
         
-        # Initialize PdfReader
+        # PdfReader'ı başlat
         reader = PdfReader(pdf_stream)
         
         extracted_text = []
@@ -26,7 +26,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         if not full_text:
             raise HTTPException(
                 status_code=400,
-                detail="Could not extract any text from the PDF file. Please ensure it is not a scanned image PDF."
+                detail="PDF dosyasından metin çıkarılamadı. Lütfen taranmış resim PDF'si olmadığından emin olun."
             )
             
         return full_text
@@ -36,5 +36,5 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
             raise e
         raise HTTPException(
             status_code=500,
-            detail=f"An error occurred while parsing the PDF: {str(e)}"
+            detail=f"PDF ayrıştırılırken bir hata oluştu: {str(e)}"
         )

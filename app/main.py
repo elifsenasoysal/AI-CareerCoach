@@ -9,21 +9,21 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
-# CORS Middleware configurations (essential for connecting frontend apps)
+# CORS ara katmanı yapılandırması (ön yüz uygulamalarıyla bağlantı için zorunludur)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=["*"],  # Üretimde ön yüz alanınızı belirtin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Root endpoint for health check
+# Sağlık kontrolü için kök endpoint
 @app.get("/")
 def read_root():
     return {
-        "message": "Welcome to the AI Career Coach API!",
-        "status": "healthy",
+        "message": "AI Kariyer Koçu API'sine hoş geldiniz!",
+        "status": "sağlıklı",
         "docs_url": "/docs"
     }
 

@@ -1,8 +1,8 @@
 # AI-CareerCoach
-An AI-powered career assistant for automated CV analysis, optimization, and real-time voice-based technical interview simulations.
+Otomatik CV analizi, optimizasyonu ve gerçek zamanlı ses tabanlı teknik mülakat simülasyonları için yapay zekâ destekli kariyer asistanı.
 
-An end-to-end local AI application designed to evaluate CVs, provide actionable feedback, and conduct role-specific voice interview simulations. By analyzing user experience and target technical fields, the system delivers structured CV enhancements and conducts dynamic, multi-turn mock interviews using speech-to-text and text-to-speech audio pipelines.
-CV Optimization & ATS Analysis: Extract technical skills, key projects, and industry alignment to suggest targeted improvements.
-Dynamic Voice Interviews: Conduct personalized technical mock interviews tailored to the candidate's field and specific CV content.
-Interactive Speech Pipeline: Process real-time voice responses using Speech-to-Text (STT) and Text-to-Speech (TTS) integration.
-Privacy-First & Local LLM Integration: Powered locally using Ollama for fully private data processing and flexible GPU evaluation.
+Kullanıcı deneyimini ve hedef teknik alanları analiz ederek CV'leri değerlendiren, eyleme geçirilebilir geri bildirim sağlayan ve alan bazlı sesli mülakat simülasyonları gerçekleştiren uçtan uca yerel bir AI uygulaması.
+CV Optimizasyonu ve ATS Analizi: Teknik becerileri, temel projeleri ve sektör uyumunu çıkararak hedefe yönelik iyileştirmeler önerir.
+Dinamik Sesli Mülakatlar: Adayın alanına ve CV içeriğine göre kişiselleştirilmiş teknik deneme mülakatları yürütür.
+Etkileşimli Konuşma İş Akışı: Konuşmayı metne (STT) ve metni konuşmaya (TTS) dönüştüren gerçek zamanlı iş akışı sağlar.
+Gizlilik Odaklı & Yerel LLM Entegrasyonu: Veriler tamamen mahremiyetli işleme için yerel olarak Ollama ile güçlendirilmiş, esnek GPU değerlendirmesi sunar.
