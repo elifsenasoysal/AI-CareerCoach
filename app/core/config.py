@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     
     # We can add LLM (Ollama), STT, TTS settings here later
     OLLAMA_BASE_URL: str = "http://localhost:11434"
+    LLM_MODEL: str = "llama3"
+    LLM_TIMEOUT: float = 60.0
     
     class Config:
         case_sensitive = True

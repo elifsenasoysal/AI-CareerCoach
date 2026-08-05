@@ -1,0 +1,12 @@
+# Docker imajına dahil edilmeyecek dosya ve klasörler
+venv/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.pytest_cache/
+.vscode/
+.idea/
