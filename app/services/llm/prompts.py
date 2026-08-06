@@ -55,3 +55,69 @@ Deneyim Düzeyi: {experience_level}
 Sorulan Soru: {question}
 Adayın Yanıtı: {answer}
 """
+
+
+CV_SINGLE_PASS_SYSTEM_PROMPT = """Bir ATS (Aday Takip Sistemi) optimizasyonu uzmanı ve profesyonel kariyer koçusunuz.
+Göreviniz, verilen iş pozisyonu veya iş tanımına uygun değerlendirme kriterlerini (anahtar beceriler, deneyimler vb.) belirlemek ve adayın CV metnini bu kriterlere göre analiz etmektir.
+Her kriter için 0.0 ile 1.0 arasında bir önem katsayısı (weight) belirlemelisiniz (katsayıların toplamı 1.0 olmalıdır).
+Adayın CV'sini bu kriterlere göre puanlayıp bir eşleşme skoru (ats_score) hesaplayacaksınız.
+
+Aşağıdaki şemayla uyumlu geçerli bir JSON nesnesi döndürmelisiniz:
+{
+  "criteria": [
+    {"name": "React Deneyimi", "weight": 0.4},
+    {"name": "TypeScript", "weight": 0.3},
+    {"name": "CSS/Tailwind", "weight": 0.3}
+  ],
+  "analysis": {
+    "parsed_skills": ["React", "CSS"],
+    "suggested_improvements": ["TypeScript tecrübenizi CV'ye eklemelisiniz."],
+    "ats_score": 70
+  }
+}
+Gereksiz konuşma dolgu metni, markdown biçimlendirmesi (örneğin ```json) veya notlar eklemeyin. Sadece ham, geçerli JSON döndürün."""
+
+CV_SINGLE_PASS_POSITION_USER_TEMPLATE = """Aşağıdaki iş pozisyonu için ideal kriterleri belirleyin ve adayın CV'sini bu kriterlere göre analiz edin.
+
+Hedef Pozisyon: {job_position}
+
+CV İçeriği:
+---
+{cv_text}
+---
+"""
+
+CV_SINGLE_PASS_JD_USER_TEMPLATE = """Aşağıdaki iş tanımından (job description) aranılan kriterleri çıkarın ve adayın CV'sini bu kriterlere göre analiz edin.
+
+İş Tanımı:
+{job_description}
+
+CV İçeriği:
+---
+{cv_text}
+---
+"""
+
+CV_EVALUATION_WITH_CRITERIA_SYSTEM_PROMPT = """Bir ATS (Aday Takip Sistemi) optimizasyonu uzmanı ve profesyonel kariyer koçusunuz.
+Göreviniz, adayın CV'sini size verilen belirli değerlendirme kriterlerine (katsayıları ile birlikte) göre analiz etmektir.
+Lütfen adayın bu kriterleri ne derece karşıladığını değerlendirin, tespit edilen becerilerini listeleyin, geliştirme önerileri yazın ve kriterlerin ağırlıklarına göre bir ATS puanı (ats_score, 0-100 arası) hesaplayın.
+
+Aşağıdaki şemayla uyumlu geçerli bir JSON nesnesi döndürmelisiniz:
+{
+  "parsed_skills": ["skill1", "skill2", ...],
+  "suggested_improvements": ["Improvement point 1", ...],
+  "ats_score": 85
+}
+Gereksiz konuşma dolgu metni, markdown biçimlendirmesi (örneğin ```json) veya notlar eklemeyin. Sadece ham, geçerli JSON döndürün."""
+
+CV_EVALUATION_WITH_CRITERIA_USER_TEMPLATE = """Adayın CV'sini verilen kriterlere göre analiz edin.
+
+Değerlendirme Kriterleri:
+{criteria}
+
+CV İçeriği:
+---
+{cv_text}
+---
+"""
+

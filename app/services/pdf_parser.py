@@ -4,9 +4,6 @@ from pypdf import PdfReader
 from fastapi import HTTPException
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """
-    PDF ikili verisinden pypdf kullanarak metin içeriğini çıkarır.
-    """
     try:
         # Baytları dosya benzeri bir akışa sar
         pdf_stream = io.BytesIO(pdf_bytes)

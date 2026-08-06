@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import logging
+import uuid
+from app.services.cache import cache_service
 from app.services.llm import (
     llm_client,
     INTERVIEW_START_SYSTEM_PROMPT,
@@ -67,8 +69,21 @@ async def mulakat_baslat(request: StartInterviewRequest):
     except Exception as e:
         logger.error(f"LLM ilk soruyu üretemedi, statik sorulara geçiliyor: {e}")
 
+    session_id = f"session_{uuid.uuid4()}"
+    try:
+        await cache_service.set(
+            f"session:{session_id}",
+            {
+                "role": request.role,
+                "experience_level": request.experience_level,
+                "focus_areas": request.focus_areas
+            }
+        )
+    except Exception as ce:
+        logger.error(f"Oturum önbelleğe kaydedilemedi: {ce}")
+
     return InterviewSessionResponse(
-        session_id="session_abc123_xyz",  # Şu anda mock oturum kimliği, ileride veritabanı/state store eklenirse güncellenecek
+        session_id=session_id,
         role=request.role,
         first_question=first_question
     )
@@ -90,11 +105,21 @@ async def yanit_gonder(request: SubmitAnswerRequest):
     score = fallback_score
     next_question = fallback_next_question
 
+    role = "Yazılım Mühendisi"
+    experience_level = "Mid/Senior"
+    try:
+        session_data = await cache_service.get(f"session:{request.session_id}")
+        if session_data:
+            role = session_data.get("role", role)
+            experience_level = session_data.get("experience_level", experience_level)
+    except Exception as ce:
+        logger.error(f"Oturum verileri önbellekten okunamadı: {ce}")
+
     try:
         # Prompt oluştur ve LLM'ye sorgu gönder
         prompt = INTERVIEW_FEEDBACK_USER_TEMPLATE.format(
-            role="Yazılım Mühendisi",  # Not: Oturum durumu veritabanından yüklenebilirdi, burada geçici bir değer kullanılıyor.
-            experience_level="Mid/Senior",
+            role=role,
+            experience_level=experience_level,
             question=request.question,
             answer=request.answer
         )
