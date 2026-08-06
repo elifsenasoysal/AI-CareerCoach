@@ -27,13 +27,12 @@ Oluşturduğumuz modüler yapı, büyük projelerde temiz kod yazımını ve kol
 FastAPI projesini bilgisayarınızda çalıştırmak için aşağıdaki adımları sırasıyla uygulayın.
 
 ### Adım 1: Terminalinizi Açın
-VS Code veya kullandığınız editörün terminalinde projenizin ana dizininde (`/Users/elifsenasoysal/Documents/GitHub/AI-CareerCoach`) olduğunuzdan emin olun.
+VS Code veya kullandığınız editörün terminalinde projenizin ana dizininde olduğunuzdan emin olun.
 
 ### Adım 2: Sanal Ortam (Virtual Environment) Oluşturun
 Python paketlerinizin diğer projelerle karışmaması için bir sanal ortam oluşturmak en iyi pratiktir:
 
 ```bash
-# MacOS/Linux için:
 python3 -m venv venv
 ```
 
@@ -41,7 +40,6 @@ python3 -m venv venv
 Sanal ortamı aktifleştirdiğinizde terminal satırınızın başında `(venv)` ifadesini göreceksiniz:
 
 ```bash
-# MacOS/Linux için:
 source venv/bin/activate
 ```
 
@@ -76,8 +74,8 @@ FastAPI'nin en güçlü özelliklerinden biri, yazdığınız kodlardan otomatik
 
 1.  Tarayıcınızı açın ve [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) adresine gidin.
 2.  Karşınıza **Swagger UI** çıkacaktır. Burada oluşturduğumuz tüm API endpoint'lerini görebilirsiniz:
-    *   `GET /`: Sağlık kontrolü (Health Check).
-    *   `POST /api/v1/cv/analyze`: CV Dosyası yükleme testi.
+    *   `GET /`: Sağlık kontrolü.
+    *   `POST /api/v1/cv/analyze`: CV dosyası yükleme testi.
     *   `POST /api/v1/interview/start`: Mülakat simülasyonu başlatma.
     *   `POST /api/v1/interview/respond`: Sorulara cevap verme ve puanlama.
 
@@ -85,7 +83,7 @@ FastAPI'nin en güçlü özelliklerinden biri, yazdığınız kodlardan otomatik
 *   Bir endpoint'e tıklayın (örn: `/api/v1/interview/start`).
 *   Sağ üstteki **"Try it out"** butonuna tıklayın.
 *   Açılan JSON şablonunu dilediğiniz gibi düzenleyin (örn: `role: "Python Developer", experience_level: "Mid"`).
-*   **"Execute"** butonuna basarak API'den dönen gerçek cevabı (Response) görüntüleyin.
+*   **"Execute"** butonuna basarak API'den dönen gerçek cevabı görüntüleyin.
 
 ---
 
@@ -112,4 +110,4 @@ Projenize yeni bir rota eklemek istediğinizde şu adımları izleyin:
     ```
 
 3.  **Yeni Rota Modülünü Bağlayın (Eğer yeni bir dosya açtıysanız):**
-    [app/api/router.py](file:///Users/elifsenasoysal/Documents/GitHub/AI-CareerCoach/app/api/router.py) dosyasına gidip import edin ve `api_router.include_router` ile dahil edin.
+    `app/api/router.py` dosyasına gidip import edin ve `api_router.include_router` ile dahil edin.

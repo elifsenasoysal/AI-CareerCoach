@@ -13,8 +13,8 @@ class LLMClient:
 
     async def generate_json(self, prompt: str, system_prompt: str) -> dict:
         """
-        Sends a request to Ollama's chat API with system and user prompts,
-        forcing the output format to be JSON.
+        Ollama sohbet API'sine sistem ve kullanıcı promptları gönderir,
+        çıkış formatını JSON olarak zorlar.
         """
         url = f"{self.base_url}/api/chat"
         payload = {
@@ -33,7 +33,7 @@ class LLMClient:
                 response.raise_for_status()
                 data = response.json()
                 
-                # Ollama's /api/chat response schema:
+                # Ollama'nın /api/chat yanıt şeması:
                 # {
                 #   "message": {
                 #     "role": "assistant",
@@ -42,18 +42,18 @@ class LLMClient:
                 # }
                 content_str = data.get("message", {}).get("content", "").strip()
                 if not content_str:
-                    raise ValueError("Received empty content from LLM.")
+                    raise ValueError("LLM'den boş içerik alındı.")
                 
                 return json.loads(content_str)
                 
         except httpx.HTTPStatusError as e:
-            logger.error(f"Ollama server returned HTTP error: {e.response.status_code} - {e.response.text}")
+            logger.error(f"Ollama sunucusu HTTP hatası döndürdü: {e.response.status_code} - {e.response.text}")
             raise
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode LLM response as JSON. Content: {content_str}. Error: {e}")
+            logger.error(f"LLM yanıtı JSON olarak çözümlenemedi. İçerik: {content_str}. Hata: {e}")
             raise
         except Exception as e:
-            logger.error(f"Error in LLMClient communication: {str(e)}")
+            logger.error(f"LLMClient iletişim hatası: {str(e)}")
             raise
 
 # Singleton instance for easy import
