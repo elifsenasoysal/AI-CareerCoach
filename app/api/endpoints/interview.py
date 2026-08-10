@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import logging
+import uuid
 from app.services.llm import (
     llm_client,
     INTERVIEW_START_SYSTEM_PROMPT,
@@ -9,6 +10,7 @@ from app.services.llm import (
     INTERVIEW_FEEDBACK_SYSTEM_PROMPT,
     INTERVIEW_FEEDBACK_USER_TEMPLATE,
 )
+from app.services.cache import cache_service, SessionData
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +69,18 @@ async def mulakat_baslat(request: StartInterviewRequest):
     except Exception as e:
         logger.error(f"LLM ilk soruyu üretemedi, statik sorulara geçiliyor: {e}")
 
+    # Her mülakat için benzersiz bir session ID üret ve oturum verisini cache'e kaydet
+    session_id = str(uuid.uuid4())
+    session_data = SessionData(
+        role=request.role,
+        experience_level=request.experience_level,
+        focus_areas=request.focus_areas or [],
+    )
+    cache_service.set_session(session_id, session_data)
+    logger.info(f"Yeni mülakat oturumu oluşturuldu: {session_id} | Rol: {request.role} | Seviye: {request.experience_level}")
+
     return InterviewSessionResponse(
-        session_id="session_abc123_xyz",  # Şu anda mock oturum kimliği, ileride veritabanı/state store eklenirse güncellenecek
+        session_id=session_id,
         role=request.role,
         first_question=first_question
     )
@@ -81,6 +93,17 @@ async def yanit_gonder(request: SubmitAnswerRequest):
     if not request.session_id:
         raise HTTPException(status_code=400, detail="Geçersiz oturum kimliği")
 
+    # Cache servisinden oturum verisini al (SessionData tipinde)
+    session_data = cache_service.get_session(request.session_id)
+    if not session_data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Oturum bulunamadı: '{request.session_id}'. Lütfen önce /start endpoint'ini çağırın."
+        )
+
+    session_role = session_data.role
+    session_level = session_data.experience_level
+
     # LLM başarısız olursa kullanılacak yedek mantık
     fallback_feedback = "İyi bir açıklama. Ana kavramları net şekilde ifade ettiniz ve sağlam bir cevap verdiniz."
     fallback_score = 8
@@ -91,10 +114,10 @@ async def yanit_gonder(request: SubmitAnswerRequest):
     next_question = fallback_next_question
 
     try:
-        # Prompt oluştur ve LLM'ye sorgu gönder
+        # Prompt oluştur ve LLM'ye sorgu gönder (session'dan gelen gerçek rol ve seviye kullanılıyor)
         prompt = INTERVIEW_FEEDBACK_USER_TEMPLATE.format(
-            role="Yazılım Mühendisi",  # Not: Oturum durumu veritabanından yüklenebilirdi, burada geçici bir değer kullanılıyor.
-            experience_level="Mid/Senior",
+            role=session_role,
+            experience_level=session_level,
             question=request.question,
             answer=request.answer
         )
