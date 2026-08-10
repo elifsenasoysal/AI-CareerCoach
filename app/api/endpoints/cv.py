@@ -1,6 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 from app.services.pdf_parser import extract_text_from_pdf
 from app.services.llm import (
@@ -20,6 +20,7 @@ class CVAnalysisResponse(BaseModel):
     file_type: str
     character_count: int
     extracted_text: str
+    job_position: Optional[str]   # Pozisyona özel analiz yapıldıysa hedef pozisyon
     parsed_skills: List[str]
     suggested_improvements: List[str]
     ats_score: int
@@ -28,9 +29,17 @@ class CVAnalysisResponse(BaseModel):
     score_summary: Dict[str, int]
 
 @router.post("/analyze", response_model=CVAnalysisResponse)
-async def cv_analiz_endpoint(file: UploadFile = File(...)):
+async def cv_analiz_endpoint(
+    file: UploadFile = File(...),
+    job_position: Optional[str] = Form(None),
+    job_description: Optional[str] = Form(None),
+):
     """
-    Bir CV (PDF) yükleyerek metnini çıkarır, tespit edilen becerileri listeler, geliştirme önerileri sunar ve LLM ile ATS puanını hesaplar.
+    Bir CV (PDF) yükleyerek metnini çıkarır, tespit edilen becerileri listeler,
+    geliştirme önerileri sunar ve LLM ile ATS puanını hesaplar.
+
+    job_position ve job_description verilirse LLM pozisyona özel değerlendirme yapar;
+    verilmezse genel CV analizi gerçekleştirir.
     """
     if file.content_type != "application/pdf":
         raise HTTPException(
@@ -47,7 +56,24 @@ async def cv_analiz_endpoint(file: UploadFile = File(...)):
     ats_score = 0
 
     try:
-        prompt = CV_ANALYSIS_USER_TEMPLATE.format(cv_text=extracted_text)
+        # Pozisyon bilgisi varsa LLM'e özel bağlam ver
+        if job_position:
+            job_context_parts = [f"\nHedef Pozisyon: {job_position}"]
+            if job_description:
+                job_context_parts.append(f"\u0130ş İlanı / İstenen Profil:\n{job_description}")
+            job_context_parts.append(
+                "\nBu CV'yi yukarıdaki pozisyon için değerlendir: "
+                "CV ile iş ilanı arasındaki anahtar kelime ve beceri örtüşmesini dikkate al, "
+                "eksik ya da eklenmesi önerilen unsurları spesifik olarak belirt.\n"
+            )
+            job_context = "\n".join(job_context_parts)
+        else:
+            job_context = ""  # Genel analiz
+
+        prompt = CV_ANALYSIS_USER_TEMPLATE.format(
+            cv_text=extracted_text,
+            job_context=job_context,
+        )
         llm_analiz_sonucu = await llm_client.generate_json(
             prompt=prompt,
             system_prompt=CV_ANALYSIS_SYSTEM_PROMPT
@@ -91,6 +117,7 @@ async def cv_analiz_endpoint(file: UploadFile = File(...)):
         file_type=file.content_type,
         character_count=character_count,
         extracted_text=extracted_text,
+        job_position=job_position,
         parsed_skills=parsed_skills,
         suggested_improvements=suggested_improvements,
         ats_score=ats_score,

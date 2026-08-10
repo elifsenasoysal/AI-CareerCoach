@@ -35,8 +35,8 @@ Aşağıdaki şemayla uyumlu geçerli bir JSON nesnesi döndür:
 
 Markdown biçimlendirmesi (örneğin ```json) veya ek notlar ekleme. Sadece ham, geçerli JSON döndür."""
 
-CV_ANALYSIS_USER_TEMPLATE = """Aşağıdaki CV metnini analiz edin, becerileri çıkarın, geliştirme önerileri sağlayın ve ATS puanını hesaplayın.
-
+CV_ANALYSIS_USER_TEMPLATE = """Aşağıdaki CV metnini analiz et, becerileri çıkar, geliştirme önerileri sun ve ATS puanını hesapla.
+{job_context}
 CV İçeriği:
 ---
 {cv_text}
