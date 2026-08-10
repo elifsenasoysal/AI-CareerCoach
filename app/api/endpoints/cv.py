@@ -56,6 +56,8 @@ async def cv_analiz_endpoint(file: UploadFile = File(...)):
         parsed_skills = llm_analiz_sonucu.get("parsed_skills", []) or []
         suggested_improvements = llm_analiz_sonucu.get("suggested_improvements", []) or []
         ats_score = llm_analiz_sonucu.get("ats_score", 0) or 0
+        # LLM'den gelen alt puan kırılımı (Seçenek A)
+        score_breakdown = llm_analiz_sonucu.get("score_breakdown") or None
     except Exception as e:
         logger.error(f"LLM CV analizi başarısız oldu, yedek ayrıştırıcı kullanılıyor: {e}")
 
@@ -75,11 +77,13 @@ async def cv_analiz_endpoint(file: UploadFile = File(...)):
             "ATS eşleşmesini artırmak için hedef iş ilanlarındaki anahtar kelimeleri ekleyin."
         ]
         ats_score = 85 if len(mock_skills) > 3 else 60
+        score_breakdown = None  # Fallback: cv_analiz_et Seçenek B (matematiksel dağılım) kullanır
 
     analiz_sonucu = cv_analiz_et(
         cv_metni=extracted_text,
         parsed_skills=parsed_skills,
         llm_puani=ats_score if ats_score else None,
+        score_breakdown=score_breakdown,
     )
 
     return CVAnalysisResponse(
