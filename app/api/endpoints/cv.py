@@ -1,3 +1,6 @@
+import hashlib
+import re
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -29,11 +32,35 @@ router = APIRouter()
 CRITERIA_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
-def _criteria_cache_key(job_position: str) -> str:
-    """Pozisyon adını normalize ederek cache anahtarı üretir.
-    Böylece 'React Developer', 'react developer', ' React Developer ' gibi
-    varyasyonlar aynı cache girdisini kullanır."""
-    return job_position.strip().lower()
+def _normalize_for_hash(text: str) -> str:
+    """Metni hash'lemeden önce normalize eder: baş/son boşlukları kırpar,
+    küçük harfe çevirir ve ardışık boşluk/satır sonlarını tek boşluğa
+    indirger. Böylece aynı iş ilanı metni, kopyala-yapıştır sırasında
+    oluşan fazladan boşluk/satır sonu/büyük-küçük harf farkları yüzünden
+    gereksiz yere farklı bir cache anahtarına düşmez."""
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def _criteria_cache_key(job_position: str, job_description: Optional[str] = None) -> str:
+    """Cache anahtarını hem pozisyon adından HEM DE (varsa) iş ilanı
+    metninden üretir.
+
+    BUG FIX (kod incelemesinde tespit edildi): Eski sürümde anahtar
+    yalnızca pozisyon adına dayanıyordu. Bu durumda örn. "Backend
+    Developer" + Python ilanı ile "Backend Developer" + Java ilanı aynı
+    cache girdisini paylaşıyor, ikinci istekte YANLIŞ kriterler (ilk
+    isteğin kriterleri) sessizce kullanılıyordu. Artık job_description da
+    (normalize edilip hash'lenerek) anahtara dahil ediliyor; böylece
+    farklı ilan içerikleri kesinlikle farklı cache girdileri üretir,
+    aynı ilan farklı şekilde yapıştırılsa bile (boşluk/case farkları)
+    gereksiz cache MISS oluşmaz."""
+    pos_key = job_position.strip().lower()
+    if job_description and job_description.strip():
+        desc_hash = hashlib.md5(
+            _normalize_for_hash(job_description).encode("utf-8")
+        ).hexdigest()[:8]
+        return f"{pos_key}:{desc_hash}"
+    return pos_key
 
 
 async def _get_or_create_position_criteria(
@@ -50,7 +77,7 @@ async def _get_or_create_position_criteria(
     yutulmaz; çağıran taraf (cv_analiz_endpoint) bunu genel CV analizi
     fallback akışına dahil edecek şekilde ele alır.
     """
-    cache_key = _criteria_cache_key(job_position)
+    cache_key = _criteria_cache_key(job_position, job_description)
 
     cached = CRITERIA_CACHE.get(cache_key)
     if cached is not None:

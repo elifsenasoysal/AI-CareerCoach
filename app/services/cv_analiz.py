@@ -86,13 +86,21 @@ def _resolve_breakdown(
         # oranı koruyarak base'e yeniden ölçekle.
         if base > 0:
             ratio = base / total
-            skills_score = round(skills_score * ratio)
-            keywords_score = round(keywords_score * ratio)
-            # Kalan farkı formatting_score'a yükle, ama negatif olmasın.
+            # BUG FIX (kod incelemesinde tespit edildi): ratio > 1 olduğunda
+            # (örn. base=90, total=50 -> ratio=1.8) round(skills_score * ratio)
+            # 40 üst sınırını rahatlıkla aşabiliyordu (örn. 40 * 1.8 = 72).
+            # Ölçekleme sonrasında alan bazlı üst sınırları TEKRAR uygulamak
+            # zorunlu — aksi halde API sözleşmesi (skill_score <= 40 vb.)
+            # ihlal edilir.
+            skills_score = _clamp(round(skills_score * ratio), max_val=40)
+            keywords_score = _clamp(round(keywords_score * ratio), max_val=30)
+            # Kalan farkı formatting_score'a yükle.
             formatting_score = base - skills_score - keywords_score
-            if formatting_score < 0:
-                # Aşırı yuvarlama sapması: güvenli tarafta kalmak için
-                # matematiksel dağılıma düş.
+            # Kalan değer negatifse VEYA kendi üst sınırını (30) aşıyorsa,
+            # (yani skills/keywords'e clamp uygulanması formatting'e aşırı
+            # yük bindirdiyse) tutarsız bir dağılım üretmek yerine güvenli
+            # tarafta kal: matematiksel dağılıma düş.
+            if formatting_score < 0 or formatting_score > 30:
                 return _mathematical_fallback(base)
             return skills_score, keywords_score, formatting_score
 
