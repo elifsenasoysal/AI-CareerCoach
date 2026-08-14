@@ -538,7 +538,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="AI Kariyer Koçu") as demo:
                     value="Mid",
                 )
                 focus_in = gr.Textbox(
-                    label="Odak Alanları (virgülle ayırın)",
+                    label="İlgi Alanları (virgülle ayırın)",
                     value="FastAPI, SQL",
                     placeholder="Örn: FastAPI, Docker, Veritabanı",
                 )
