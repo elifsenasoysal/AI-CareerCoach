@@ -106,8 +106,13 @@ def _build_job_context(
     position_criteria mevcutsa (cache HIT ya da taze üretim), LLM'e ham
     iş ilanı yerine ÖNCEDEN ÜRETİLMİŞ, odaklı kriterleri veririz — bu hem
     daha hızlı hem de daha tutarlı bir CV puanlaması sağlar."""
-    if not job_position:
-        return ""  # Genel analiz
+    if not job_position or not job_position.strip():
+        return (
+            "\nHedef Pozisyon: Belirtilmedi (Genel CV Analizi)\n"
+            "NOT: Hedef pozisyon boş/null olduğu için pozisyona özel değil, GENEL CV OPTİMİZASYONU "
+            "(Genel ATS kuralları, metrik kullanımı, düzen, eylem fiilleri) yapın. "
+            "Geliştirme önerilerinin ilk adımında 'Hedef pozisyon belirtilmediği için genel analiz yapılmıştır.' notunu mutlaka düşsün.\n"
+        )
 
     parts = [f"\nHedef Pozisyon: {job_position}"]
 
@@ -157,6 +162,123 @@ class CVAnalysisResponse(BaseModel):
     score_summary: Dict[str, int]
 
 
+def _sanitize_llm_cv_output(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    LLM çıktısını temizler ve halüsinasyon gören anahtarları/puanları düzeltir.
+
+    Özellikle küçük/lokal modeller bazen "ats_score: 75" veya "score_breakdown"
+    gibi anahtar adlarını 'suggested_improvements' dizisinin içine eleman olarak
+    koyabilir. Bu fonksiyon:
+      1) 'suggested_improvements' içindeki "ats_score: XX" ifadelerini yakalayıp
+         kök seviyedeki ats_score'a aktarır (eğer üst seviyede 0 veya eksikse).
+      2) 'suggested_improvements' içinden meta anahtar kelimeleri ve puan metinlerini temizler.
+      3) Temizlenmiş sözlüğü döner.
+    """
+    if not isinstance(data, dict):
+        return {}
+
+    raw_improvements = data.get("suggested_improvements", [])
+    if not isinstance(raw_improvements, list):
+        raw_improvements = []
+
+    cleaned_improvements = []
+    extracted_score = None
+
+    for item in raw_improvements:
+        if not isinstance(item, str):
+            continue
+
+        item_str = item.strip()
+
+        # ats_score: 75 veya ats_score = 75 veya ats_score 75 kalıbını yakala
+        score_match = re.search(r"ats_score\s*[:=]?\s*(\d+)", item_str, re.IGNORECASE)
+        if score_match:
+            try:
+                extracted_score = int(score_match.group(1))
+            except ValueError:
+                pass
+            continue  # Bu elemanı öneri listesinden çıkar
+
+        # Diğer meta anahtar kelimeleri ve başlıkları önerilerden temizle
+        if re.match(r"^(score_breakdown|parsed_skills|score_summary|ats_score)$", item_str, re.IGNORECASE):
+            continue
+
+        cleaned_improvements.append(item_str)
+
+    data["suggested_improvements"] = cleaned_improvements
+
+    # Üst seviyede ats_score yoksa veya 0 ise, diziden çıkarılan puanı kullan
+    current_ats = data.get("ats_score")
+    try:
+        current_ats = int(current_ats)
+    except (TypeError, ValueError):
+        current_ats = 0
+
+    if current_ats <= 0 and extracted_score is not None and extracted_score > 0:
+        data["ats_score"] = extracted_score
+        logger.info(f"suggested_improvements içinden kurtarılan ats_score: {extracted_score}")
+
+    return data
+
+
+def _filter_skills_against_cv_text(parsed_skills: List[str], cv_text: str) -> List[str]:
+    """
+    LLM'in halüsinasyon görüp iş ilanı kriterlerinden kopyaladığı, ancak
+    adayın CV metninde HİÇ GEÇMEYEN becerileri temizler.
+    """
+    if not cv_text or not parsed_skills:
+        return parsed_skills
+
+    cv_text_lower = cv_text.lower()
+    valid_skills: List[str] = []
+
+    # Bilinen eşanlamlı/kısaltma/Türkçe karşılık haritası
+    skill_aliases = {
+        "reactjs": ["react", "reactjs"],
+        "react.js": ["react", "reactjs"],
+        "vuejs": ["vue", "vuejs"],
+        "node.js": ["node", "nodejs"],
+        "javascript": ["js", "javascript"],
+        "typescript": ["ts", "typescript"],
+        "postgresql": ["postgres", "postgresql"],
+        "asp.net": [".net", "asp.net"],
+        "asp.net core": [".net", "asp.net"],
+        "c#": ["c#", "c sharp"],
+        "c++": ["c++"],
+        "llms": ["llm", "llms", "büyük dil modelleri", "large language models"],
+        "rag systems": ["rag", "retrieval"],
+        "agent-based systems": ["agent", "ajan"],
+        "asynchronous programming patterns": ["asenkron", "async", "asynchronous"],
+        "prompt engineering": ["prompt"],
+    }
+
+    for skill in parsed_skills:
+        skill_clean = skill.strip()
+        skill_lower = skill_clean.lower()
+
+        # 1. Doğrudan alt dize kontrolü (örn: "Python" -> "python" in cv_text_lower)
+        if skill_lower in cv_text_lower:
+            valid_skills.append(skill_clean)
+            continue
+
+        # 2. Alias / Türkçe Karşılık kontrolü
+        aliases = skill_aliases.get(skill_lower, [skill_lower])
+        if any(alias in cv_text_lower for alias in aliases):
+            valid_skills.append(skill_clean)
+            continue
+
+        # 3. Çok kelimeli becerilerin anlamlı parçalarının kontrolü
+        words = [w for w in re.split(r"[\s\-_/]+", skill_lower) if len(w) > 2]
+        if words and any(word in cv_text_lower for word in words):
+            valid_skills.append(skill_clean)
+            continue
+
+        logger.info(f"CV metninde bulunamayan halüsinasyon beceri elendi: '{skill_clean}'")
+
+    # Eğer filtreleme sonrasında hiç beceri kalmadıysa güvenlik amacıyla orijinal listeyi koru
+    return valid_skills if valid_skills else parsed_skills
+
+
 @router.post("/analyze", response_model=CVAnalysisResponse)
 async def cv_analiz_endpoint(
     file: UploadFile = File(...),
@@ -190,7 +312,7 @@ async def cv_analiz_endpoint(
 
     try:
         position_criteria: Optional[Dict[str, Any]] = None
-        if job_position:
+        if job_position and job_position.strip():
             try:
                 position_criteria = await _get_or_create_position_criteria(
                     job_position, job_description
@@ -213,11 +335,16 @@ async def cv_analiz_endpoint(
             prompt=prompt,
             system_prompt=CV_ANALYSIS_SYSTEM_PROMPT,
         )
+        llm_analiz_sonucu = _sanitize_llm_cv_output(llm_analiz_sonucu)
 
-        parsed_skills = llm_analiz_sonucu.get("parsed_skills", []) or []
+        raw_parsed_skills = llm_analiz_sonucu.get("parsed_skills", []) or []
+        parsed_skills = _filter_skills_against_cv_text(raw_parsed_skills, extracted_text)
         suggested_improvements = llm_analiz_sonucu.get("suggested_improvements", []) or []
         ats_score = llm_analiz_sonucu.get("ats_score", 0) or 0
         score_breakdown = llm_analiz_sonucu.get("score_breakdown") or None
+
+        if ats_score == 0:
+            raise ValueError("LLM boş veya geçersiz analiz sonucu döndürdü (ats_score=0).")
 
     except Exception as e:
         logger.error(f"LLM CV analizi başarısız oldu, yedek ayrıştırıcı kullanılıyor: {e}")
@@ -235,10 +362,17 @@ async def cv_analiz_endpoint(
             mock_skills = ["Genel Teknik Beceri"]
 
         parsed_skills = mock_skills
-        suggested_improvements = [
-            "Deneyim bölümünüze daha fazla nicel etki ifadesi ekleyin.",
-            "ATS eşleşmesini artırmak için hedef iş ilanlarındaki anahtar kelimeleri ekleyin.",
-        ]
+        if not job_position or not job_position.strip():
+            suggested_improvements = [
+                "Hedef pozisyon belirtilmediği için genel analiz yapılmıştır.",
+                "Deneyim bölümünüze daha fazla nicel etki ifadesi (metrikler) ekleyin.",
+                "ATS uyumluluğunu artırmak için genel bölüm başlıklarını ve düzeni optimize edin.",
+            ]
+        else:
+            suggested_improvements = [
+                "Deneyim bölümünüze daha fazla nicel etki ifadesi ekleyin.",
+                "ATS eşleşmesini artırmak için hedef iş ilanlarındaki anahtar kelimeleri ekleyin.",
+            ]
         ats_score = 85 if len(mock_skills) > 3 else 60
         score_breakdown = None  # Fallback: cv_analiz_et matematiksel dağılım kullanır
 
