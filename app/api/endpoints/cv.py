@@ -1,11 +1,15 @@
 import hashlib
 import re
-
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+import uuid
 import logging
+from typing import List, Dict, Any, Optional
 
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.database.session import get_db
+from app.database.models import CVAnalizRecord
 from app.services.pdf_parser import extract_text_from_pdf
 from app.services.llm import (
     llm_client,
@@ -282,8 +286,13 @@ def _filter_skills_against_cv_text(parsed_skills: List[str], cv_text: str) -> Li
 @router.post("/analyze", response_model=CVAnalysisResponse)
 async def cv_analiz_endpoint(
     file: UploadFile = File(...),
+    first_name: str = Form(...),      # DB tablosunda NOT NULL (Zorunlu)
+    last_name: str = Form(...),       # DB tablosunda NOT NULL (Zorunlu)
+    university: Optional[str] = Form(None),
+    department: Optional[str] = Form(None),
     job_position: Optional[str] = Form(None),
     job_description: Optional[str] = Form(None),
+    db: Session = Depends(get_db),    # PostgreSQL oturumu
 ):
     """
     Bir CV (PDF) yükleyerek metnini çıkarır, tespit edilen becerileri listeler,
@@ -301,6 +310,28 @@ async def cv_analiz_endpoint(
             detail="Geçersiz dosya türü. Şu anda yalnızca metin çıkarımı için PDF dosyaları desteklenmektedir.",
         )
 
+    # ---------------------------------------------------------------------------
+    # 1. Kullanıcı ve Okul Bilgilerini PostgreSQL Veritabanına Kaydetme
+    # ---------------------------------------------------------------------------
+    try:
+        user_record = CVAnalizRecord(
+            session_id=str(uuid.uuid4()),
+            first_name=first_name,
+            last_name=last_name,
+            university=university,
+            department=department,
+            job_position=job_position,
+        )
+        db.add(user_record)
+        db.commit()
+        db.refresh(user_record)
+    except Exception as db_err:
+        db.rollback()
+        logger.error(f"Veritabanına kayıt sırasında hata oluştu: {db_err}")
+
+    # ---------------------------------------------------------------------------
+    # 2. CV Analiz İşlemleri
+    # ---------------------------------------------------------------------------
     content = await file.read()
     extracted_text = extract_text_from_pdf(content)
     character_count = len(extracted_text)
