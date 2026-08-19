@@ -28,6 +28,12 @@ class Settings(BaseSettings):
         description="Redis bağlantı URL'i. SessionCache Redis'e taşındığında kullanılır.",
     )
 
+    # ── Veritabanı (PostgreSQL) ──────────────────────────────────────────
+    DATABASE_URL: str = Field(
+        default="",
+        description="PostgreSQL veritabanı bağlantı URL'i (örn. postgresql://user:pass@localhost:5432/dbname)",
+    )
+
     model_config = {
         # .env dosyasından otomatik oku (yoksa varsayılan değerler kullanılır)
         "env_file": ".env",
