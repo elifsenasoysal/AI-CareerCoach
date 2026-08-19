@@ -2,6 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.router import api_router
+from app.database.session import engine, Base
+import app.database.models  # noqa: F401 (modelleri kaydeder)
+
+# Veritabanı tablolarını otomatik oluştur (engine varsa)
+if engine is not None:
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as db_init_err:
+        import logging
+        logging.getLogger(__name__).warning(f"Veritabanı tabloları otomatik oluşturulamadı: {db_init_err}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
