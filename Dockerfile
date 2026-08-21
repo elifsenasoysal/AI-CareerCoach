@@ -7,6 +7,7 @@ WORKDIR /app
 # Gerekli sistem paketlerini kuruyoruz (gcc vb. derleme araçları)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Bağımlılık listesini kopyalayıp yüklüyoruz

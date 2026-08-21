@@ -830,6 +830,82 @@ def mulakati_sifirla():
         gr.update(value="", visible=False, interactive=True), gr.update(interactive=True)
     )
 
+def sesli_mulakat_baslat(role, experience_level, focus_areas_str):
+    if not role or not role.strip() or not experience_level or experience_level == "Seçiniz":
+        return "", 0, gr.update(value="⚠️ Lütfen rol ve deneyim seviyesi seçin.", visible=True), [], gr.update(visible=False)
+
+    focus_areas = [f.strip() for f in focus_areas_str.split(",") if f.strip()] if focus_areas_str else []
+    payload = {"role": role, "experience_level": experience_level, "focus_areas": focus_areas}
+
+    try:
+        res = requests.post(f"{API_BASE_URL}/interview/start", json=payload, timeout=90)
+        if res.status_code == 200:
+            data = res.json()
+            question_md = f"### ❓ {data['first_question']}"
+            return (
+                data["session_id"], 
+                1, 
+                gr.update(visible=False), 
+                [(None, question_md)], 
+                gr.update(visible=True)
+            )
+        error_detail = res.json().get("detail", res.text)
+        return "", 0, gr.update(value=f"❌ Hata: {error_detail}", visible=True), [], gr.update(visible=False)
+    except Exception as e:
+        return "", 0, gr.update(value=f"❌ Hata: {str(e)}", visible=True), [], gr.update(visible=False)
+
+def sesli_yanit_isleyici(session_id, audio_path, history, question_count):
+    if not session_id or not audio_path:
+        return history, question_count, gr.update(value=None)
+        
+    try:
+        # 1. STT işlemi
+        with open(audio_path, "rb") as f:
+            files = {"audio": (audio_path, f, "audio/wav")}
+            stt_res = requests.post(f"{API_BASE_URL}/stt/transcribe", files=files, timeout=60)
+            
+        if stt_res.status_code != 200:
+            history.append((None, "❌ Ses metne çevrilemedi."))
+            return history, question_count, gr.update(value=None)
+            
+        user_text = stt_res.json().get("text", "")
+        if not user_text:
+            history.append((None, "⚠️ Sesiniz anlaşılamadı, lütfen tekrar deneyin."))
+            return history, question_count, gr.update(value=None)
+
+        # 2. Son soruyu geçmişten al
+        last_bot_message = history[-1][1] if history else ""
+        clean_question = last_bot_message.replace("### ❓", "").strip()
+        # Eğer bot mesajının içinde '---' varsa (önceki turdan kalan geri bildirimleri ayırmak için), sadece soruyu alalım
+        if "---" in clean_question:
+            clean_question = clean_question.split("---")[-1].strip()
+
+        # 3. LLM'e gönder
+        payload = {"session_id": session_id, "question": clean_question, "answer": user_text}
+        llm_res = requests.post(f"{API_BASE_URL}/interview/respond", json=payload, timeout=90)
+        
+        if llm_res.status_code == 200:
+            data = llm_res.json()
+            score = data.get("score", 0)
+            feedback = data.get("feedback", "")
+            next_q = data.get("next_question")
+            
+            bot_reply = f"### 📊 Puan: {score}/10\n\n{feedback}"
+            if next_q:
+                bot_reply += f"\n\n---\n\n### ❓ {next_q}"
+            else:
+                bot_reply += "\n\n---\n\n### ✅ Mülakat tamamlandı!"
+                
+            history.append((user_text, bot_reply))
+            return history, question_count + 1, gr.update(value=None)
+            
+        history.append((user_text, "❌ LLM işlemi başarısız."))
+        return history, question_count, gr.update(value=None)
+    except Exception as e:
+        history.append((None, f"❌ Sistem hatası: {str(e)}"))
+        return history, question_count, gr.update(value=None)
+
+
 
 # ---------------------------------------------------------------------------
 # Gradio Arayüz Tasarımı
@@ -1041,6 +1117,56 @@ with gr.Blocks(title="AI Kariyer Koçu", css=custom_css) as demo:
                 fn=mulakati_sifirla,
                 inputs=None,
                 outputs=[session_state, question_count_state, start_status, question_box, question_row, feedback_row, answer_in, submit_btn],
+            )
+
+        # ── Sekme 3: Sesli Mülakat (Person 1) ────────────────────────
+        with gr.Tab("🎙️ Sesli Mülakat (Voice)"):
+            v_session_state = gr.State("")
+            v_question_count = gr.State(0)
+
+            gr.HTML(
+                """
+                <div class="hero-section">
+                    <div class="hero-title">
+                        <span>🎙️</span>
+                        <span>Sesli Mülakat Simülatörü</span>
+                    </div>
+                    <div class="hero-grid">
+                        <div class="hero-col">
+                            <h3>Sesli Mülakat (Core Loop)</h3>
+                            <p>Mülakat sorularını mikrofonunuzu kullanarak yanıtlayın. Whisper yapay zeka modeli konuşmanızı duraksamalar (eee, ııı) dahil metne çevirir ve LLM buna göre yeni bir soru üretir.</p>
+                        </div>
+                    </div>
+                </div>
+                """
+            )
+
+            with gr.Row():
+                with gr.Column(scale=1, elem_classes=["form-card", "interview-form-card"]):
+                    with gr.Row(equal_height=True):
+                        v_role_in = gr.Textbox(label="HEDEF ROL", value="Python Developer", scale=1, lines=1)
+                        v_level_in = gr.Dropdown(label="DENEYİM SEVİYESİ", choices=["Seçiniz", "Junior", "Mid", "Senior"], value="Seçiniz", scale=1)
+                    v_focus_in = gr.Textbox(label="İLGİ ALANLARI", value="FastAPI, SQL", lines=1)
+                    v_start_btn = gr.Button("🚀 Sesli Mülakatı Başlat", variant="primary")
+                    v_status = gr.Markdown(visible=False)
+
+            with gr.Row(visible=False) as v_chat_row:
+                with gr.Column(scale=1):
+                    v_chatbot = gr.Chatbot(label="Mülakat Geçmişi", height=500, elem_classes=["result-card"])
+                    with gr.Row():
+                        v_audio_in = gr.Audio(sources=["microphone"], type="filepath", label="Cevabınızı Kaydedin")
+                        v_submit_btn = gr.Button("Gönder (Sonraki Soru)", variant="primary")
+
+            v_start_btn.click(
+                fn=sesli_mulakat_baslat,
+                inputs=[v_role_in, v_level_in, v_focus_in],
+                outputs=[v_session_state, v_question_count, v_status, v_chatbot, v_chat_row]
+            )
+
+            v_submit_btn.click(
+                fn=sesli_yanit_isleyici,
+                inputs=[v_session_state, v_audio_in, v_chatbot, v_question_count],
+                outputs=[v_chatbot, v_question_count, v_audio_in]
             )
 
     # =========================================================================
